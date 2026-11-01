@@ -15,27 +15,29 @@ GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 APIFY_API_TOKEN = st.secrets.get("APIFY_API_TOKEN", "") # Prendi questo token gratis da Apify
 
 def scrape_con_apify(url):
-    """Chiama l'attore di Apify per bypassare i blocchi e raccogliere dati ed immagini"""
-    # Identifichiamo la piattaforma dal link
+    """Chiama l'attore di Apify ottimizzando i tempi per evitare il Read Timeout"""
     if "subito.it" in url:
-        # L'ID dell'attore è frances_api/subito-motori-scraper
-        # Nelle API di Apify lo slash va sostituito con la tilde ~
         actor_id = "frances_api~subito-motori-scraper"
+        # Diciamo all'attore di fermarsi immediatamente dopo aver estratto l'annuncio
+        run_input = {
+            "url": url,
+            "maxItems": 1 
+        }
     elif "://facebook.com" in url:
-        # ID ufficiale: apify/facebook-marketplace-scraper
         actor_id = "apify~facebook-marketplace-scraper"
+        run_input = {
+            "searchUrls": [url],
+            "maxResults": 1 # Limita lo scraping al singolo link inserito
+        }
     else:
         return None, "Sito non supportato. Inserisci un link valido di Subito o Facebook Marketplace."
 
-    # URL FISSO E CORRETTO secondo le specifiche POST v2 di Apify
+    # URL delle API sincrone di Apify
     api_url = f"https://api.apify.com/v2/actors/{actor_id}/run-sync-get-dataset-items?token={APIFY_API_TOKEN}"
     
-    # Input richiesto dagli attori Apify
-    run_input = {"searchUrls": [url]} if "facebook" in actor_id else {"url": url}
-    
     try:
-        # Inviamo la richiesta POST ad Apify
-        response = requests.post(api_url, json=run_input, timeout=60)
+        # AUMENTATO IL TIMEOUT A 150 SECONDI: Diamo al server il tempo di gestire i proxy anti-ban
+        response = requests.post(api_url, json=run_input, timeout=150)
         
         if response.status_code != 200:
             return None, f"Errore Apify (Stato {response.status_code}): {response.text}"
@@ -43,21 +45,21 @@ def scrape_con_apify(url):
         dati_scaricati = response.json()
         
         if not dati_scaricati:
-            return None, "L'annuncio non ha restituito dati. Controlla il link o i tuoi crediti su Apify."
+            return None, "L'annuncio non ha restituito dati. Controlla il link o prova con un altro annuncio."
             
-        # Gli attori restituiscono sempre una lista (dataset items)
-        # Prendiamo il primo elemento che corrisponde all'annuncio scansionato
-        item = dati_scaricati[0] if isinstance(dati_scaricati, list) else dati_scaricati
+        # Apify restituisce una lista, estraiamo il primo annuncio trovato
+        item = dati_scaricati[0] if isinstance(dati_scaricati, list) and len(dati_scaricati) > 0 else dati_scaricati
 
-        # Estrazione e normalizzazione pulita delle informazioni
         output = {
-            "titolo": item.get("title") or item.get("name") or "Veicolo non specificato",
-            "descrizione": item.get("description") or "Nessuna descrizione presente nell'annuncio.",
+            "titolo": item.get("title") or item.get("name") or "Veicolo",
+            "descrizione": item.get("description") or "Nessuna descrizione.",
             "prezzo": item.get("price") or "Non specificato",
             "immagini": item.get("images") or item.get("photos") or []
         }
         return output, None
         
+    except requests.exceptions.Timeout:
+        return None, "⏱️ Il server di scraping ha impiegato troppo tempo a rispondere per superare i blocchi del sito. Riprova tra un minuto con lo stesso o un altro link."
     except Exception as e:
         return None, f"Errore durante lo scraping: {str(e)}"
 
