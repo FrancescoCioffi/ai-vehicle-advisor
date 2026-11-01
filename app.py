@@ -15,23 +15,25 @@ GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 APIFY_API_TOKEN = st.secrets.get("APIFY_API_TOKEN", "")
 
 def scrape_con_apify(url):
-    """Chiama l'attore di Apify ed estrae i dati in base alla struttura reale di Subito/Facebook"""
+    """Chiama l'attore di Apify usando URL statici e separati per evitare fusioni di stringhe"""
+    
     if "subito.it" in url:
-        actor_id = "frances_api~subito-motori-scraper"
+        # URL statico definitivo per Subito.it
+        api_url = f"https://apify.com{APIFY_API_TOKEN}"
         run_input = {"url": url, "maxItems": 1}
+        
     elif "://facebook.com" in url:
-        actor_id = "apify~facebook-marketplace-scraper"
+        # URL statico definitivo per Facebook Marketplace
+        api_url = f"https://apify.com{APIFY_API_TOKEN}"
         run_input = {"searchUrls": [url], "maxResults": 1}
+        
     else:
         return None, "Sito non supportato. Inserisci un link valido di Subito o Facebook Marketplace."
-
-    # URL FISSO: Scritto a mano come stringa unica e pulita senza variabili concatenate
-    api_url = f"https://apify.com{actor_id}/run-sync-get-dataset-items?token={APIFY_API_TOKEN}"
     
     try:
+        # Chiamata HTTP
         response = requests.post(api_url, json=run_input, timeout=150)
         
-        # Controllo matematico per lo stato HTTP della risposta
         if response.status_code != 200 and response.status_code != 201:
             return None, f"Errore Apify (Stato {response.status_code}): {response.text}"
             
@@ -40,13 +42,12 @@ def scrape_con_apify(url):
         if not dati_scaricati or len(dati_scaricati) == 0:
             return None, "L'annuncio non ha restituito dati. Controlla il link."
             
-        # Apify restituisce una lista. Prendiamo il primo elemento
+        # Estraiamo il primo annuncio della lista
         item = dati_scaricati[0] if isinstance(dati_scaricati, list) else dati_scaricati
 
-        # Estrazione e normalizzazione in base alle risposte reali di Subito
+        # Estrazione dati specifica per Subito
         features = item.get("features", {})
         price_info = features.get("price", {})
-        
         prezzo = price_info.get("value") or item.get("price") or "Non specificato"
         
         output = {
@@ -66,7 +67,6 @@ def analizza_veicolo_completo(dati_veicolo):
     """Invia il testo e i link delle immagini dell'annuncio a Gemini"""
     url_gemini = f"https://googleapis.com{GEMINI_API_KEY}"
     
-    # Prendiamo i link delle prime 5 immagini estratte dall'annuncio
     link_immagini = []
     for img in dati_veicolo["immagini"][:5]:
         if isinstance(img, dict):
@@ -118,7 +118,6 @@ if st.button("Analizza Annuncio dal Link 🚀"):
             else:
                 st.success(f"Dati di '{dati_veicolo['titolo']}' estratti con successo! Avvio analisi AI...")
                 
-                # Mostriamo un'anteprima delle immagini estratte
                 if dati_veicolo["immagini"]:
                     prima_img = dati_veicolo["immagini"][0]
                     url_img = prima_img.get("url") if isinstance(prima_img, dict) else prima_img
@@ -144,4 +143,4 @@ if st.button("Analizza Annuncio dal Link 🚀"):
                             for c in risultato.get("criticita_rilevate", []): st.error(f"• {c}")
                         with col2:
                             st.subheader("✅ Punti di Forza del mezzo")
-                            for p in risultato.get("punti_forza", []): st.success(f"• {p}")
+                            for p in resultado.get("punti_forza", []): st.success(f"• {p}")
