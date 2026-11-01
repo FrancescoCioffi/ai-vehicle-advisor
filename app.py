@@ -18,7 +18,7 @@ def scrape_con_apify(url):
     """Chiama l'attore di Apify per bypassare i blocchi e raccogliere dati ed immagini"""
     # Identifichiamo la piattaforma dal link
     if "subito.it" in url:
-        # Usiamo uno scraper per Subito (es: frances_api/subito-motori-scraper)
+        # Usiamo lo scraper per Subito
         actor_id = "frances_api/subito-motori-scraper"
     elif "://facebook.com" in url:
         # Usiamo lo scraper ufficiale di Facebook Marketplace su Apify
@@ -26,7 +26,7 @@ def scrape_con_apify(url):
     else:
         return None, "Sito non supportato. Inserisci un link valido di Subito o Facebook Marketplace."
 
-    # Avviamo lo scraping tramite API di Apify
+    # CORREZIONE: URL formattato correttamente secondo le specifiche API v2 di Apify
     api_url = f"https://apify.com{actor_id}/run-sync-get-dataset-items?token={APIFY_API_TOKEN}"
     
     # Input richiesto dall'attore Apify
@@ -37,15 +37,20 @@ def scrape_con_apify(url):
         dati_scaricati = response.json()
         
         if not dati_scaricati:
-            return None, "Impossibile estrarre i dati dall'annuncio. Controlla il link."
+            return None, "Impossibile estrarre i dati dall'annuncio. Controlla il link o i crediti Apify."
             
-        # Normalizziamo l'output per renderlo standard indipendentemente dal sito
-        item = dati_scaricati[0]
+        # Apify restituisce una lista di risultati, prendiamo il primo elemento
+        if isinstance(dati_scaricati, list):
+            item = dati_scaricati[0]
+        else:
+            item = dati_scaricati
+
+        # Estrazione e normalizzazione dei dati
         output = {
-            "titolo": item.get("title") or item.get("name"),
-            "descrizione": item.get("description"),
-            "prezzo": item.get("price"),
-            "immagini": item.get("images") or item.get("photos", []) # Lista di URL delle foto
+            "titolo": item.get("title") or item.get("name") or "Veicolo non specificato",
+            "descrizione": item.get("description") or "Nessuna descrizione presente",
+            "prezzo": item.get("price") or "Non specificato",
+            "immagini": item.get("images") or item.get("photos", [])
         }
         return output, None
     except Exception as e:
