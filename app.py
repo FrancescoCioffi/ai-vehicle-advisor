@@ -18,41 +18,46 @@ def scrape_con_apify(url):
     """Chiama l'attore di Apify per bypassare i blocchi e raccogliere dati ed immagini"""
     # Identifichiamo la piattaforma dal link
     if "subito.it" in url:
-        # Usiamo lo scraper per Subito
-        actor_id = "frances_api/subito-motori-scraper"
+        # L'ID dell'attore è frances_api/subito-motori-scraper
+        # Nelle API di Apify lo slash va sostituito con la tilde ~
+        actor_id = "frances_api~subito-motori-scraper"
     elif "://facebook.com" in url:
-        # Usiamo lo scraper ufficiale di Facebook Marketplace su Apify
-        actor_id = "apify/facebook-marketplace-scraper"
+        # ID ufficiale: apify/facebook-marketplace-scraper
+        actor_id = "apify~facebook-marketplace-scraper"
     else:
         return None, "Sito non supportato. Inserisci un link valido di Subito o Facebook Marketplace."
 
-    # CORREZIONE: URL formattato correttamente secondo le specifiche API v2 di Apify
-    api_url = f"https://apify.com{actor_id}/run-sync-get-dataset-items?token={APIFY_API_TOKEN}"
+    # URL FISSO E CORRETTO secondo le specifiche POST v2 di Apify
+    api_url = f"https://api.apify.com/v2/actors/{actor_id}/run-sync-get-dataset-items?token={APIFY_API_TOKEN}"
     
-    # Input richiesto dall'attore Apify
+    # Input richiesto dagli attori Apify
     run_input = {"searchUrls": [url]} if "facebook" in actor_id else {"url": url}
     
     try:
+        # Inviamo la richiesta POST ad Apify
         response = requests.post(api_url, json=run_input, timeout=60)
+        
+        if response.status_code != 200:
+            return None, f"Errore Apify (Stato {response.status_code}): {response.text}"
+            
         dati_scaricati = response.json()
         
         if not dati_scaricati:
-            return None, "Impossibile estrarre i dati dall'annuncio. Controlla il link o i crediti Apify."
+            return None, "L'annuncio non ha restituito dati. Controlla il link o i tuoi crediti su Apify."
             
-        # Apify restituisce una lista di risultati, prendiamo il primo elemento
-        if isinstance(dati_scaricati, list):
-            item = dati_scaricati[0]
-        else:
-            item = dati_scaricati
+        # Gli attori restituiscono sempre una lista (dataset items)
+        # Prendiamo il primo elemento che corrisponde all'annuncio scansionato
+        item = dati_scaricati[0] if isinstance(dati_scaricati, list) else dati_scaricati
 
-        # Estrazione e normalizzazione dei dati
+        # Estrazione e normalizzazione pulita delle informazioni
         output = {
             "titolo": item.get("title") or item.get("name") or "Veicolo non specificato",
-            "descrizione": item.get("description") or "Nessuna descrizione presente",
+            "descrizione": item.get("description") or "Nessuna descrizione presente nell'annuncio.",
             "prezzo": item.get("price") or "Non specificato",
-            "immagini": item.get("images") or item.get("photos", [])
+            "immagini": item.get("images") or item.get("photos") or []
         }
         return output, None
+        
     except Exception as e:
         return None, f"Errore durante lo scraping: {str(e)}"
 
