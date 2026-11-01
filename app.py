@@ -30,8 +30,8 @@ def scrape_con_apify(url):
     try:
         response = requests.post(api_url, json=run_input, timeout=150)
         
-        # CORREZIONE COMPLETA: Adesso la lista [200, 201] è presente e valida!
-        if response.status_code not in:
+        # LOGICA CORRETTA CON OPERATORE STANDARD (Risolve definitivamente il SyntaxError)
+        if response.status_code != 200 and response.status_code != 201:
             return None, f"Errore Apify (Stato {response.status_code}): {response.text}"
             
         dati_scaricati = response.json()
@@ -40,7 +40,7 @@ def scrape_con_apify(url):
             return None, "L'annuncio non ha restituito dati. Controlla il link."
             
         # Lo scraper restituisce una lista. Estraiamo il primo annuncio
-        item = dati_scaricati[0] if isinstance(dati_scaricati, list) else dati_scaricati
+        item = dati_scaricati if isinstance(dati_scaricati, list) else dati_scaricati
 
         # Estrazione adattata alla struttura di Subito
         features = item.get("features", {})
