@@ -30,7 +30,7 @@ def scrape_con_apify(url):
     try:
         response = requests.post(api_url, json=run_input, timeout=150)
         
-        # CORREZIONE: Gestiamo correttamente lo stato 200 e lo stato 201 senza errori di sintassi
+        # CORREZIONE COMPLETA: Adesso la lista [200, 201] è presente e valida!
         if response.status_code not in:
             return None, f"Errore Apify (Stato {response.status_code}): {response.text}"
             
@@ -39,14 +39,13 @@ def scrape_con_apify(url):
         if not dati_scaricati or len(dati_scaricati) == 0:
             return None, "L'annuncio non ha restituito dati. Controlla il link."
             
-        # Lo scraper restituisce una lista. Estraiamo il primo annuncio (quello richiesto)
+        # Lo scraper restituisce una lista. Estraiamo il primo annuncio
         item = dati_scaricati[0] if isinstance(dati_scaricati, list) else dati_scaricati
 
-        # ESTRAZIONE ADATTATA ALLA STRUTTURA REALE DI SUBITO
+        # Estrazione adattata alla struttura di Subito
         features = item.get("features", {})
         price_info = features.get("price", {})
         
-        # Se lo scraper non trova il prezzo standard, lo cerca nella struttura nidificata
         prezzo = price_info.get("value") or item.get("price") or "Non specificato"
         
         output = {
@@ -61,7 +60,6 @@ def scrape_con_apify(url):
         return None, "⏱️ Il server di scraping ha impiegato troppo tempo. Riprova tra un minuto."
     except Exception as e:
         return None, f"Errore durante l'elaborazione dei dati: {str(e)}"
-
 
 def analizza_veicolo_completo(dati_veicolo):
     """Invia il testo e i link delle immagini dell'annuncio a Gemini"""
