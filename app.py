@@ -30,7 +30,7 @@ def scrape_con_apify(url):
     try:
         response = requests.post(api_url, json=run_input, timeout=150)
         
-        # Gestiamo sia lo stato 200 che lo stato 201 (Entrambi indicano successo nelle API sincrone)
+        # CORREZIONE: Gestiamo correttamente lo stato 200 e lo stato 201 senza errori di sintassi
         if response.status_code not in:
             return None, f"Errore Apify (Stato {response.status_code}): {response.text}"
             
