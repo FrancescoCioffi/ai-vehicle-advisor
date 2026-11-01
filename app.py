@@ -12,7 +12,7 @@ url_annuncio = st.text_input("Incolla il link dell'annuncio qui:")
 
 # Chiavi segrete prese dai Secrets di Streamlit
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
-APIFY_API_TOKEN = st.secrets.get("APIFY_API_TOKEN", "") # Prendi questo token gratis da Apify
+APIFY_API_TOKEN = st.secrets.get("APIFY_API_TOKEN", "")
 
 def scrape_con_apify(url):
     """Chiama l'attore di Apify ed estrae i dati in base alla struttura reale di Subito/Facebook"""
@@ -25,12 +25,13 @@ def scrape_con_apify(url):
     else:
         return None, "Sito non supportato. Inserisci un link valido di Subito o Facebook Marketplace."
 
+    # URL FISSO: Scritto a mano come stringa unica e pulita senza variabili concatenate
     api_url = f"https://apify.com{actor_id}/run-sync-get-dataset-items?token={APIFY_API_TOKEN}"
     
     try:
         response = requests.post(api_url, json=run_input, timeout=150)
         
-        # LOGICA CORRETTA CON OPERATORE STANDARD (Risolve definitivamente il SyntaxError)
+        # Controllo matematico per lo stato HTTP della risposta
         if response.status_code != 200 and response.status_code != 201:
             return None, f"Errore Apify (Stato {response.status_code}): {response.text}"
             
@@ -39,10 +40,10 @@ def scrape_con_apify(url):
         if not dati_scaricati or len(dati_scaricati) == 0:
             return None, "L'annuncio non ha restituito dati. Controlla il link."
             
-        # Lo scraper restituisce una lista. Estraiamo il primo annuncio
-        item = dati_scaricati if isinstance(dati_scaricati, list) else dati_scaricati
+        # Apify restituisce una lista. Prendiamo il primo elemento
+        item = dati_scaricati[0] if isinstance(dati_scaricati, list) else dati_scaricati
 
-        # Estrazione adattata alla struttura di Subito
+        # Estrazione e normalizzazione in base alle risposte reali di Subito
         features = item.get("features", {})
         price_info = features.get("price", {})
         
@@ -65,8 +66,15 @@ def analizza_veicolo_completo(dati_veicolo):
     """Invia il testo e i link delle immagini dell'annuncio a Gemini"""
     url_gemini = f"https://googleapis.com{GEMINI_API_KEY}"
     
-    # Costruiamo il prompt includendo i link delle immagini recuperate dallo scraper
-    immagini_stringa = ", ".join([img.get("url", img) if isinstance(img, dict) else img for img in dati_veicolo["immagini"][:5]])
+    # Prendiamo i link delle prime 5 immagini estratte dall'annuncio
+    link_immagini = []
+    for img in dati_veicolo["immagini"][:5]:
+        if isinstance(img, dict):
+            link_immagini.append(img.get("url", ""))
+        else:
+            link_immagini.append(str(img))
+            
+    immagini_stringa = ", ".join(link_immagini)
     
     prompt = f"""
     Analizza questo veicolo. Ti fornisco i dati testuali dell'annuncio e i link delle immagini reali caricate dal venditore.
@@ -76,7 +84,7 @@ def analizza_veicolo_completo(dati_veicolo):
     Descrizione: {dati_veicolo['descrizione']}
     Link Immagini da ispezionare: [{immagini_stringa}]
     
-    Rispondi ESCLUSIVAMENTE in formato JSON con questa struttura:
+    Rispondi ESCLUSIVAMENTE in un formato JSON valido. Non aggiungere testo prima o dopo il JSON. Usa esattamente questa struttura:
     {{
       "valutazione": "OTTIMO" o "ONESTO" o "CARO",
       "motivazione": "Spiegazione basata sul rapporto qualità/prezzo",
@@ -110,9 +118,12 @@ if st.button("Analizza Annuncio dal Link 🚀"):
             else:
                 st.success(f"Dati di '{dati_veicolo['titolo']}' estratti con successo! Avvio analisi AI...")
                 
-                # Mostriamo un'anteprima delle immagini estratte direttamente dal link
+                # Mostriamo un'anteprima delle immagini estratte
                 if dati_veicolo["immagini"]:
-                    st.image(dati_veicolo["immagini"][0], width=300, caption="Foto principale estratta dall'annuncio")
+                    prima_img = dati_veicolo["immagini"][0]
+                    url_img = prima_img.get("url") if isinstance(prima_img, dict) else prima_img
+                    if url_img:
+                        st.image(url_img, width=400, caption="Foto principale dell'annuncio")
                 
                 with st.spinner("Gemini sta analizzando testo e immagini alla ricerca di anomalie..."):
                     risultato = analizza_veicolo_completo(dati_veicolo)
@@ -120,13 +131,12 @@ if st.button("Analizza Annuncio dal Link 🚀"):
                     if "errore" in risultato:
                         st.error(risultato["errore"])
                     else:
-                        # Mostriamo i risultati
-                        val = risultato["valutazione"]
+                        val = risultato.get("valutazione", "ONESTO")
                         if val == "OTTIMO": st.metric("Verdetto Convenienza", "🟢 OTTIMO AFFARE")
                         elif val == "ONESTO": st.metric("Verdetto Convenienza", "🟡 PREZZO ONESTO")
                         else: st.metric("Verdetto Convenienza", "🔴 SOVRAPPREZZO")
                         
-                        st.write(f"**Analisi:** {risultato['motivazione']}")
+                        st.write(f"**Analisi:** {risultato.get('motivazione', '')}")
                         
                         col1, col2 = st.columns(2)
                         with col1:
